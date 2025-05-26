@@ -1,3 +1,5 @@
+import base64
+
 from tableModels import db, Users, Reports
 from database import SessionLocal
 
@@ -44,10 +46,16 @@ def create_user(uuid, username, password, adminLevel):
         session.close()
 
 
-def create_report(uuid, description, grade, location, reportType, image=None):
+def create_report(uuid, description, role, location, reportType, user_uuid, image=None):
     session = SessionLocal()
-    new_report = Reports(uuid=uuid, description=description, grade=grade, location=location, reportType=reportType,
-                         image=image)
+
+    image_bytes = None
+
+    if image:
+        image_bytes = base64.b64decode(image)
+
+    new_report = Reports(uuid=uuid, description=description, role=role, location=location, reportType=reportType,
+                         image=image_bytes, userUuid=user_uuid)
 
     try:
         session.add(new_report)
@@ -247,7 +255,41 @@ def get_user_info(username):
         session.close()
 
 
+def get_user_info_by_uuid(uuid):
+    session = SessionLocal()
+    try:
+        user = session.query(Users).filter(Users.uuid == uuid).first()
+        if user:
+            return user.uuid, user.password, user.username, user.adminLevel, user.hashPassword
+        else:
+            return None
+    except Exception as error:
+        print(f"Error retrieving user info by UUID: {error}")
+        return None
+    finally:
+        session.close()
 
-print(get_user_uuid("omerbarfy"))
-print(is_user_valid("omerbarfy","7654321"))
-print(get_user_info("omerbarfy"))
+
+def get_reports_by_user_uuid(user_uuid):
+    session = SessionLocal()
+    try:
+        return session.query(Reports).filter_by(userUuid=user_uuid).all()
+    except Exception as error:
+        print(f"Error getting reports for user {user_uuid}: {error}")
+        return []
+    finally:
+        session.close()
+
+
+
+if __name__ == "__main__":
+    # print(get_user_uuid("omerbarfy"))
+    # print(is_user_valid("omerbarfy","7654321"))
+    # print(get_user_info("shaibarfy"))
+    #delete_user('b1983e2a-856a-4307-b578-865d96ae62af')
+    #print(get_all_users())
+    print(get_reports_by_user_uuid("97d1265a-40a6-4f1c-8be4-d96221b4a185"))
+
+
+
+

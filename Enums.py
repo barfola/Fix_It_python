@@ -2,24 +2,24 @@ from enum import Enum
 
 
 class Role(Enum):
-    TEACHER = 1
-    STUDENT = 2
-    SCHOOL_CREW = 3
-    OTHER = 4
+    TEACHER = 0
+    STUDENT = 1
+    SCHOOL_CREW = 2
+    OTHER = 3
 
 
 class Location(Enum):
-    BATHROOM = 1
-    YARD = 2
-    CLASSROOM = 3
-    TEACHERS_LOUNGE = 4
-    HALLWAY = 5
+    BATHROOM = 0
+    YARD = 1
+    CLASSROOM = 2
+    TEACHERS_LOUNGE = 3
+    HALLWAY = 4
 
 
 class ReportType(Enum):
-    LOST_KEY = 1
-    LAMP_BURNED_OUT = 2
-    BATTERIES = 3
-    AIR_CONDITIONER = 4
-    PROJECTOR = 5
-    BROKEN_OBJECT = 6
+    LOST_KEY = 0
+    LAMP_BURNED_OUT = 1
+    BATTERIES = 2
+    AIR_CONDITIONER = 3
+    PROJECTOR = 4
+    BROKEN_OBJECT = 5

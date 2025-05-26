@@ -6,7 +6,7 @@ from Enums import Location, Role, ReportType
 from databaseUtils import *
 
 session_store = {"1": datetime.now()}
-SESSION_DURATION_MINUTES = 80
+SESSION_DURATION_MINUTES = 10
 
 server = Flask(__name__)
 fix_it_db_path = r"D:\Cyber\project\db\fixitdb.db"
@@ -16,6 +16,9 @@ db.init_app(server)
 
 
 def check_user(session_id: str) -> bool:
+    global session_store
+    print(f"The session id is : {session_id}")
+    print(f"Session store data : {session_store}")
     login_time = session_store.get(session_id)
     if not login_time:
         return False
@@ -75,20 +78,6 @@ def get_report():
     return jsonify(sample_data), 200
 
 
-@server.route('/receive_report', methods=['POST'])
-def receive_report():
-    data = request.get_json()
-    #session_id = data.get('sessionId')
-
-    # if not check_user(session_id):
-    #     print("session is not valid")
-    #     return 'session expired', 401
-
-    print(f"Received report data : {data} ")
-    print(ReportType[data.get('reportType')])
-    return '', 200
-
-
 @server.route('/delete_report', methods=['POST'])
 def delete_report():
     data = request.get_json()
@@ -112,7 +101,116 @@ def send_session_id():
         'session_id': session_id
     }
 
-    return jsonify(data),200
+    return jsonify(data), 200
+
+
+@server.route('/get_reports', methods=['GET'])
+def get_reports_by_user():
+    user_uuid = request.args.get("userUuid")
+    session_id = request.args.get("sessionID")
+
+    print(f"Received GET: userUuid={user_uuid}, sessionID={session_id}")
+
+    if not user_uuid or not session_id:
+        print("invalid credentials")
+        return jsonify({"error": "Missing userUuid or sessionID"}), 400
+
+    # if check_user(session_id):
+    #     print("invalid session")
+    #     return jsonify({"error": "Invalid session"}), 401
+
+    session = SessionLocal()
+
+    try:
+        # Optional: Add session ID verification logic here
+        user_reports = session.query(Reports).filter_by(userUuid=user_uuid).all()
+
+        result = []
+        for report in user_reports:
+            result.append({
+                "uuid": report.uuid,
+                "description": report.description,
+                "role": report.role,  # assuming stored as int
+                "location": report.location,
+                "reportType": report.reportType,
+                "image": base64.b64encode(report.image).decode() if report.image else None
+            })
+
+        return jsonify(result), 200
+
+    except Exception as error:
+        print(f"Error retrieving reports: {error}")
+        return jsonify({"error": str(error)}), 500
+
+    finally:
+        session.close()
+
+
+@server.route('/problemReport', methods=['POST'])
+def receive_report():
+    data = request.get_json()
+    print(f"The report data is : {data}")
+    try:
+        uuid = data.get("uuid")
+        description = data.get("description")
+        role_int = data.get("role")
+        location_int = data.get("location")
+        report_type_int = data.get("reportType")
+        image = data.get("image")
+
+        user_data = data.get("user", {})
+        user_uuid = user_data.get("userUuid")
+        session_id = user_data.get("sessionID")
+
+        # Convert integers to Enum safely
+        try:
+            role = Role(role_int)
+            location = Location(location_int)
+            report_type = ReportType(report_type_int)
+        except ValueError as e:
+            return jsonify({"error": f"Invalid enum value: {e}"}), 400
+
+        print(f"uuid: {uuid}")
+        print(f"Description: {description}")
+        print(f"Role: {role.name}")
+        print(f"Location: {location.name}")
+        print(f"Report Type: {report_type.name}")
+        print(f"User UUID: {user_uuid}")
+        print(f"Session ID: {session_id}")
+        print(f"Image: {image}")
+
+        create_report(uuid, description, role.value, location.value, report_type.value, user_uuid, image)
+
+        return jsonify({"message": "Report received"}), 200
+    except Exception as error:
+        print("Error in /problemReport:", error)
+        return jsonify({"error": str(error)}), 500
+
+
+@server.route('/initialCredentials', methods=['Post'])
+def initial_credentials():
+    credentials = request.get_json()
+    uuid = credentials.get("uuid")
+    session_id = credentials.get("sessionId")
+    try:
+        if check_user(session_id):
+            user_uuid, user_password, user_username, user_admin_level, user_hash_password = get_user_info_by_uuid(uuid)
+            response_data = {'message': 'User logged in successfully',
+                             'sessionId': session_id,
+                             'uuid': user_uuid,
+                             'userName': user_username,
+                             'password': user_password,
+                             'hashPassword': user_hash_password,
+                             'adminLevel': user_admin_level,
+                             }
+            return jsonify(response_data), 200
+
+        else:
+            return jsonify({'message': 'Session expired'}), 401
+
+    except Exception as error:
+        print("Error processing user data:", str(error))
+        return jsonify({'error': 'Failed to process user data'}), 400
 
 
 @server.route('/login', methods=['POST'])
@@ -121,7 +219,6 @@ def user_login():
     login_data = request.get_json()
     username = login_data.get("userName")
     password = login_data.get("password")
-    print(f"login_data:{login_data}")
     try:
         if is_user_valid(username, password):
             session_id = save_user_session()
@@ -136,6 +233,7 @@ def user_login():
                              'hashPassword': user_hash_password,
                              'adminLevel': user_admin_level,
                              }
+            print(response_data)
             return jsonify(response_data), 200
 
         else:
@@ -144,7 +242,6 @@ def user_login():
     except Exception as error:
         print("Error processing user data:", str(error))
         return jsonify({'error': 'Failed to process user data'}), 400
-
 
 
 @server.route('/signin', methods=['POST'])
@@ -157,6 +254,7 @@ def user_signin():
             session_id = save_user_session()
             print(session_id)
             create_user_in_db(sign_in_data)
+            print("user created in user table")
             return jsonify({'message': 'User received successfully', 'sessionId': session_id}), 200
 
         else:
@@ -167,8 +265,6 @@ def user_signin():
         return jsonify({'error': 'Failed to process user data'}), 400
 
 
-
-
-
 if __name__ == '__main__':
     server.run(host='0.0.0.0', port=5000)
+

@@ -22,3 +22,4 @@ class Reports(db.Model):
     location = db.Column(db.Integer, nullable=False)
     reportType = db.Column(db.Integer, nullable=False)
     image = db.Column(db.LargeBinary, nullable=True)
+    userUuid = db.Column(db.Text, nullable=False)
