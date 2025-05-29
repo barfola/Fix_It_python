@@ -185,7 +185,7 @@ def get_all_users():
         session.close()
 
 
-def get_all_reports():
+def get_all_users_reports():
     session = SessionLocal()
     try:
         reports = session.query(Reports).all()

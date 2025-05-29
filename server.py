@@ -5,8 +5,8 @@ import uuid
 from Enums import Location, Role, ReportType
 from databaseUtils import *
 
-session_store = {"1": datetime.now()}
-SESSION_DURATION_MINUTES = 10
+session_store = {}
+SESSION_DURATION_SECONDS = 300
 
 server = Flask(__name__)
 fix_it_db_path = r"D:\Cyber\project\db\fixitdb.db"
@@ -15,14 +15,16 @@ server.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{fix_it_db_path}'
 db.init_app(server)
 
 
-def check_user(session_id: str) -> bool:
+def is_session_expired(session_id: str) -> bool:
     global session_store
     print(f"The session id is : {session_id}")
     print(f"Session store data : {session_store}")
+
     login_time = session_store.get(session_id)
     if not login_time:
-        return False
-    return datetime.now() < login_time + timedelta(minutes=SESSION_DURATION_MINUTES)
+        return True
+
+    return datetime.now() > login_time + timedelta(seconds=SESSION_DURATION_SECONDS)
 
 
 def save_user_session() -> str:
@@ -52,7 +54,7 @@ def list_reports():
 def receive_user():
     data = request.get_json()
     session_id = data.get('sessionId')
-    if not check_user(session_id):
+    if not is_session_expired(session_id):
         pass
     data = request.get_json()
     # session_id = data.get('sessionId')
@@ -67,7 +69,7 @@ def receive_user():
 def get_report():
     data = request.get_json()
     session_id = data.get('sessionId')
-    if not check_user(session_id):
+    if not is_session_expired(session_id):
         pass
     sample_data = {
         "reportId": 1,
@@ -76,22 +78,6 @@ def get_report():
         "location": "Room 203"
     }
     return jsonify(sample_data), 200
-
-
-@server.route('/delete_report', methods=['POST'])
-def delete_report():
-    data = request.get_json()
-    session_id = data.get('sessionId')
-    if not check_user(session_id):
-        pass
-
-
-@server.route('/update_report', methods=['POST'])
-def update_report():
-    data = request.get_json()
-    session_id = data.get('sessionId')
-    if not check_user(session_id):
-        pass
 
 
 @server.route('/session_id', methods=['GET'])
@@ -104,10 +90,29 @@ def send_session_id():
     return jsonify(data), 200
 
 
-@server.route('/get_reports', methods=['GET'])
-def get_reports_by_user():
+@server.route('/delete_report', methods=['DELETE'])
+def delete_report_by_admin():
+    uuid = request.args.get("uuid")
+    session_id = request.args.get("sessionId")
     user_uuid = request.args.get("userUuid")
-    session_id = request.args.get("sessionID")
+
+    if not is_session_expired(session_id):
+        pass
+
+    try:
+
+        delete_report(uuid)
+
+        return jsonify({"message": "Report deleted"}), 200
+
+    except Exception as error:
+        return jsonify({"error": str(error)}), 500
+
+
+@server.route('/get_all_reports', methods=['GET'])
+def get_all_reports():
+    user_uuid = request.args.get("userUuid").strip()
+    session_id = request.args.get("sessionID").strip()
 
     print(f"Received GET: userUuid={user_uuid}, sessionID={session_id}")
 
@@ -115,14 +120,60 @@ def get_reports_by_user():
         print("invalid credentials")
         return jsonify({"error": "Missing userUuid or sessionID"}), 400
 
-    # if check_user(session_id):
-    #     print("invalid session")
-    #     return jsonify({"error": "Invalid session"}), 401
+    if is_session_expired(session_id):
+        print("invalid session")
+        return jsonify({"error": "Invalid session"}), 401
 
     session = SessionLocal()
 
     try:
         # Optional: Add session ID verification logic here
+        all_reports = get_all_users_reports()
+
+        result = []
+        for report in all_reports:
+            result.append({
+                "uuid": report.uuid,
+                "description": report.description,
+                "role": report.role,  # assuming stored as int
+                "location": report.location,
+                "reportType": report.reportType,
+                #"image": None
+                "image": base64.b64encode(report.image).decode() if report.image else None
+
+            })
+
+        return jsonify(result), 200
+
+    except Exception as error:
+        print(f"Error retrieving reports: {error}")
+        return jsonify({"error": str(error)}), 500
+
+    finally:
+        session.close()
+
+
+@server.route('/get_reports', methods=['GET'])
+def get_reports_by_user():
+    user_uuid = request.args.get("userUuid").strip()
+    session_id = request.args.get("sessionID").strip()
+
+    print(f"Received GET: userUuid={user_uuid}, sessionID={session_id}")
+
+    if not user_uuid or not session_id:
+        print("invalid credentials")
+        return jsonify({"error": "Missing userUuid or sessionID"}), 400
+
+    print(f"The session is {session_id}")
+    print(f"is ok{is_session_expired(session_id)}")
+
+    if is_session_expired(session_id):
+        print("invalid session")
+        return jsonify({"error": "Session expired"}), 401
+
+    session = SessionLocal()
+
+    try:
         user_reports = session.query(Reports).filter_by(userUuid=user_uuid).all()
 
         result = []
@@ -133,7 +184,9 @@ def get_reports_by_user():
                 "role": report.role,  # assuming stored as int
                 "location": report.location,
                 "reportType": report.reportType,
-                "image": base64.b64encode(report.image).decode() if report.image else None
+                "image": None  # In this final version of my app I don't need the image(A lot of images causes to : unexpected end of streem)
+                # "image": base64.b64encode(report.image).decode() if report.image else None
+
             })
 
         return jsonify(result), 200
@@ -150,6 +203,18 @@ def get_reports_by_user():
 def receive_report():
     data = request.get_json()
     print(f"The report data is : {data}")
+
+    user_uuid = request.args.get("userUuid").strip()
+    session_id = request.args.get("sessionID").strip()
+
+    if not user_uuid or not session_id:
+        print("invalid credentials")
+        return jsonify({"error": "Missing userUuid or sessionID"}), 400
+
+    if is_session_expired(session_id):
+        print("invalid session")
+        return jsonify({"error": "Invalid session"}), 401
+
     try:
         uuid = data.get("uuid")
         description = data.get("description")
@@ -158,15 +223,11 @@ def receive_report():
         report_type_int = data.get("reportType")
         image = data.get("image")
 
-        user_data = data.get("user", {})
-        user_uuid = user_data.get("userUuid")
-        session_id = user_data.get("sessionID")
-
-        # Convert integers to Enum safely
         try:
             role = Role(role_int)
             location = Location(location_int)
             report_type = ReportType(report_type_int)
+
         except ValueError as e:
             return jsonify({"error": f"Invalid enum value: {e}"}), 400
 
@@ -193,7 +254,7 @@ def initial_credentials():
     uuid = credentials.get("uuid")
     session_id = credentials.get("sessionId")
     try:
-        if check_user(session_id):
+        if not is_session_expired(session_id):
             user_uuid, user_password, user_username, user_admin_level, user_hash_password = get_user_info_by_uuid(uuid)
             response_data = {'message': 'User logged in successfully',
                              'sessionId': session_id,
@@ -267,4 +328,3 @@ def user_signin():
 
 if __name__ == '__main__':
     server.run(host='0.0.0.0', port=5000)
-
