@@ -6,7 +6,7 @@ from Enums import Location, Role, ReportType
 from databaseUtils import *
 
 session_store = {}
-SESSION_DURATION_SECONDS = 300
+SESSION_DURATION_SECONDS = 500
 
 server = Flask(__name__)
 fix_it_db_path = r"D:\Cyber\project\db\fixitdb.db"
@@ -90,6 +90,17 @@ def send_session_id():
     return jsonify(data), 200
 
 
+@server.route("/get_image", methods=["GET"])
+def get_image():
+    uuid = request.args.get("uuid")
+    base64_image = get_report_image_base64(uuid)
+
+    if base64_image:
+        return jsonify({"image": base64_image}), 200
+    else:
+        return jsonify({"error": "Image not found"}), 404
+
+
 @server.route('/delete_report', methods=['DELETE'])
 def delete_report_by_admin():
     uuid = request.args.get("uuid")
@@ -127,7 +138,6 @@ def get_all_reports():
     session = SessionLocal()
 
     try:
-        # Optional: Add session ID verification logic here
         all_reports = get_all_users_reports()
 
         result = []
@@ -138,8 +148,8 @@ def get_all_reports():
                 "role": report.role,  # assuming stored as int
                 "location": report.location,
                 "reportType": report.reportType,
-                #"image": None
-                "image": base64.b64encode(report.image).decode() if report.image else None
+                "image": None
+                #"image": base64.b64encode(report.image).decode() if report.image else None
 
             })
 
@@ -155,6 +165,8 @@ def get_all_reports():
 
 @server.route('/get_reports', methods=['GET'])
 def get_reports_by_user():
+    global session_store
+
     user_uuid = request.args.get("userUuid").strip()
     session_id = request.args.get("sessionID").strip()
 
@@ -169,6 +181,7 @@ def get_reports_by_user():
 
     if is_session_expired(session_id):
         print("invalid session")
+        del session_store[session_id]
         return jsonify({"error": "Session expired"}), 401
 
     session = SessionLocal()
@@ -201,6 +214,7 @@ def get_reports_by_user():
 
 @server.route('/problemReport', methods=['POST'])
 def receive_report():
+    global session_store
     data = request.get_json()
     print(f"The report data is : {data}")
 
@@ -213,6 +227,7 @@ def receive_report():
 
     if is_session_expired(session_id):
         print("invalid session")
+        del session_store[session_id]
         return jsonify({"error": "Invalid session"}), 401
 
     try:

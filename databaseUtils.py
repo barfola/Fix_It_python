@@ -281,6 +281,31 @@ def get_reports_by_user_uuid(user_uuid):
         session.close()
 
 
+def get_report_image_base64(uuid):
+    session = SessionLocal()
+    try:
+        report = session.query(Reports).filter_by(uuid=uuid).first()
+
+        if not report:
+            print(f"No report found with uuid {uuid}.")
+            return None
+
+        if not report.image:
+            print(f"No image associated with report {uuid}.")
+            return None
+
+        # Convert image bytes to Base64 string
+        base64_image = base64.b64encode(report.image).decode('utf-8')
+        return base64_image
+
+    except Exception as error:
+        print(f"Failed to retrieve image due to: {error}")
+        return None
+
+    finally:
+        session.close()
+
+
 
 if __name__ == "__main__":
     # print(get_user_uuid("omerbarfy"))
@@ -289,6 +314,7 @@ if __name__ == "__main__":
     #delete_user('b1983e2a-856a-4307-b578-865d96ae62af')
     #print(get_all_users())
     print(get_reports_by_user_uuid("97d1265a-40a6-4f1c-8be4-d96221b4a185"))
+    print(get_report_image_base64("3e3d0eac-6a57-4a57-846d-71b5deaf7f71"))
 
 
 
