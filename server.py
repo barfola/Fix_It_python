@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-from tableModels import db, Users, Reports
 from datetime import datetime, timedelta
 import uuid
 from Enums import Location, Role, ReportType
@@ -198,7 +197,6 @@ def get_reports_by_user():
                 "location": report.location,
                 "reportType": report.reportType,
                 "image": None  # In this final version of my app I don't need the image(A lot of images causes to : unexpected end of streem)
-                # "image": base64.b64encode(report.image).decode() if report.image else None
 
             })
 

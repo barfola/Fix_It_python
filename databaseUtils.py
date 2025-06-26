@@ -308,14 +308,7 @@ def get_report_image_base64(uuid):
 
 
 if __name__ == "__main__":
-    # print(get_user_uuid("omerbarfy"))
-    # print(is_user_valid("omerbarfy","7654321"))
-    # print(get_user_info("shaibarfy"))
-    #delete_user('b1983e2a-856a-4307-b578-865d96ae62af')
-    #print(get_all_users())
-    print(get_reports_by_user_uuid("97d1265a-40a6-4f1c-8be4-d96221b4a185"))
-    print(get_report_image_base64("3e3d0eac-6a57-4a57-846d-71b5deaf7f71"))
-
+    print(1)
 
 
 
